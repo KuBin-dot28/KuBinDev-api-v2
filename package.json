@@ -1,14 +1,13 @@
 {
-  "name": "kubindev-api-v2",
+  "name": "kubindev-bot",
   "version": "1.0.0",
-  "description": "",
-  "main": "lc79.js",
+  "description": "Bot soi cau VIP",
+  "main": "kubin_vip_engine.js",
   "scripts": {
-    "start": "node lc79.js"
+    "start": "node kubin_vip_engine.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "node-fetch": "^2.6.7"
+    "node-fetch": "^3.3.1"
   }
 }
