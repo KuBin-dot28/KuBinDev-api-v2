@@ -2,9 +2,9 @@
   "name": "kubindev-bot",
   "version": "1.0.0",
   "description": "Bot soi cau VIP",
-  "main": "kubin_vip_engine.js",
+  "main": "index.js", 
   "scripts": {
-    "start": "node kubin_vip_engine.js"
+    "start": "node index.js"
   },
   "dependencies": {
     "express": "^4.18.2",
