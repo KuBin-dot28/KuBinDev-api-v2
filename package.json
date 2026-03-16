@@ -1,13 +1,18 @@
 {
-  "name": "kubindev-bot",
+  "name": "kubindev",
   "version": "1.0.0",
-  "description": "Bot soi cau VIP",
-  "main": "index.js", 
+  "description": "Hệ thống dự đoán LC79 VIP",
+  "type": "module",
+  "main": "server.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "node-fetch": "^3.3.1"
-  }
+    "fastify": "^4.26.0",
+    "@fastify/cors": "^9.0.1",
+    "node-fetch": "^3.3.2"
+  },
+  "author": "KubinDev_VIP",
+  "license": "ISC"
 }
