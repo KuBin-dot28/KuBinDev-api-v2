@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "description": "Hệ thống dự đoán LC79 VIP",
   "type": "module",
-  "main": "server.js",
+  "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch index.js"
   },
   "dependencies": {
     "fastify": "^4.26.0",
