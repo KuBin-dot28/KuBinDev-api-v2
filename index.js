@@ -367,7 +367,7 @@ const engine = new LC79ComprehensiveEngine();
 // PHẦN 5: API SERVER (ĐỊNH DẠNG VIP FINAL)
 // ============================================================
 
-app.get("/api/taixiu/lc79", async (req, res) => {
+app.get("/", async (req, res) => {
     try {
         const response = await fetch(API_URL);
         const data = await response.json();
