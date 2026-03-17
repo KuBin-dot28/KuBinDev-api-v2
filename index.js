@@ -1,3 +1,9 @@
+import Fastify from 'fastify';
+import fetch from 'node-fetch';
+
+const fastify = Fastify();
+const port = process.env.PORT || 3000;
+
 /**
  * ================================================================
  * SIÊU CÔNG CỤ TRÙM CHƠI BẨN v25.0 - BẢN GIGA-FLOW "CHỐNG ĐỚP"
@@ -216,7 +222,6 @@ function ai_entropy(h) {
     if(c3>0){p=c3/32; ent -= p*Math.log2(p);}
     if(ca>0){p=ca/32; ent -= p*Math.log2(p);}
     if(cf>0){p=cf/32; ent -= p*Math.log2(p);}
-    // (Viết thêm p cho đủ 16 ký tự để tăng dòng...)
     return ent;
 }
 
@@ -265,7 +270,11 @@ function detect_pattern(arr) {
 async function start_giga_process() {
     try {
         var url = "https://wcl.tele68.com/v1/chanlefull/sessions";
-        var request = await fetch(url);
+        var request = await fetch(url, {
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+        });
         var data = await request.json();
         
         var cur_node = data[0];
@@ -323,7 +332,7 @@ async function start_giga_process() {
         LAST_SID_CHECKED = cur_node.sessionId;
         LAST_PRED_STORED = final_choice;
 
-        // --- RENDER GIAO DIỆN (BUNG TỪNG DÒNG CONSOLE) ---
+       // --- RENDER GIAO DIỆN (BUNG TỪNG DÒNG CONSOLE) ---
         console.clear();
         console.log("%c========================================", "color: gray");
         console.log("%c   KuBinDev SICBO Lc78" + VERSION, "color: #00FF00; font-weight: bold; font-size: 16px");
@@ -356,6 +365,19 @@ async function start_giga_process() {
     }
 }
 
-// Chạy vòng lặp
-setInterval(start_giga_process, 15000);
-start_giga_process();
+// --- KHỞI CHẠY SERVER ĐỂ RENDER KHÔNG STOP ---
+fastify.get('/', async (request, reply) => {
+  return { status: 'v25.0 running', win: LOG_WIN, loss: LOG_LOSS };
+});
+
+const start = async () => {
+  try {
+    await fastify.listen({ port: port, host: '0.0.0.0' });
+    console.log(`Server live on port ${port}`);
+    setInterval(start_giga_process, 15000);
+    start_giga_process();
+  } catch (err) {
+    process.exit(1);
+  }
+}
+start();
