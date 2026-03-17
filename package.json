@@ -1,21 +1,14 @@
 {
-  "name": "kubin phantich s1vn",
+  "name": "kubindev-api-v2",
   "version": "13.5.0",
-  "description": "Hệ Thống Phân Tích Chẵn Lẻ kubindev",
-  "main": "index.js",
   "type": "module",
+  "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node index.js"
   },
   "dependencies": {
     "fastify": "^4.26.2",
     "@fastify/cors": "^9.0.1",
     "node-fetch": "^3.3.2"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "author": "@KuBinDev",
-  "license": "MIT"
+  }
 }
