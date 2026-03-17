@@ -156,7 +156,7 @@ app.get("/", async (request, reply) => {
     const lot_tong_hop = [...new Set([...lotCoDinh, lotThanh])].sort((a, b) => a - b);
 
     return {
-        author: "S18 Bá rõ .",
+        id: "@KuBinDev .",
         phien_vua_xong: {
             id: lastSession.sessionId || lastSession.id || "N/A",
             ket_qua: (lastSession.totalScore >= 11) ? `TÀI (${lastSession.totalScore})` : `XỈU (${lastSession.totalScore})`,
