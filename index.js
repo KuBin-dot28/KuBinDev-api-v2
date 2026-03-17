@@ -161,7 +161,7 @@ app.get("/", async (req, reply) => {
 
     return {
         "author": "@KuBinDev .",
-        "he_thong": "STABLE - OMEGA VIP v13.0 (SUPER UPGRADE)",
+        "he_thong": "STABLE - OMEGA VIP Phân Tích S1vn (SUPER UPGRADE)",
         "phong_do_20_tay": state.predictions.join(" "),
         "thong_ke_tong_quat": {
             "thang": state.win,
