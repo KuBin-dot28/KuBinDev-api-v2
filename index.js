@@ -83,7 +83,7 @@ async function fetchGameData() {
     }
 }
 
-app.get('/', async (req, res) => {
+app.get('/analyze', async (req, res) => {
     const history = await fetchGameData();
     if (!history) return res.status(500).json({ error: "Không thể lấy dữ liệu từ Server Game" });
 
