@@ -1,7 +1,7 @@
 {
-  "name": "kubindev",
-  "version": "1.0.0",
-  "description": "Hệ thống dự đoán LC79 VIP",
+  "name": "kubindev-v25",
+  "version": "25.0.0",
+  "description": "Siêu công cụ dự đoán KuBinDev VIP",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -9,9 +9,9 @@
     "dev": "node --watch index.js"
   },
   "dependencies": {
+    "node-fetch": "^3.3.2",
     "fastify": "^4.26.0",
-    "@fastify/cors": "^9.0.1",
-    "node-fetch": "^3.3.2"
+    "@fastify/cors": "^9.0.1"
   },
   "author": "KubinDev_VIP",
   "license": "ISC"
