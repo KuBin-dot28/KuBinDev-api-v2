@@ -1,7 +1,7 @@
 {
-  "name": "kubindev chanle s1vn",
-  "version": "13.0.0",
-  "description": "Siêu Thuật Toán Chẵn Lẻ S1vn",
+  "name": "kubin phantich s1vn",
+  "version": "13.5.0",
+  "description": "Hệ Thống Phân Tích Chẵn Lẻ kubindev",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -9,13 +9,13 @@
     "dev": "nodemon index.js"
   },
   "dependencies": {
-    "fastify": "^4.26.0",
+    "fastify": "^4.26.2",
     "@fastify/cors": "^9.0.1",
     "node-fetch": "^3.3.2"
   },
-  "devDependencies": {
-    "nodemon": "^3.1.0"
+  "engines": {
+    "node": ">=18.0.0"
   },
-  "author": "KuBinDev",
-  "license": "ISC"
+  "author": "@KuBinDev",
+  "license": "MIT"
 }
