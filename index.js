@@ -2,162 +2,142 @@ import fastify from "fastify";
 import cors from "@fastify/cors";
 import fetch from "node-fetch";
 
-// --- CẤU HÌNH HỆ THỐNG ---
-const VERSION = "Lc79 > S18 Bá rõ .";
+// --- CẤU HÌNH ---
 const API_URL = "https://wcl.tele68.com/v1/chanlefull/sessions";
 const app = fastify({ logger: false });
 await app.register(cors, { origin: "*" });
 
-let rikResults = [];
+let xocDiaResults = [];
 
 // ================================================================
-// 1. KHO THUẬT TOÁN ĐA MÔ HÌNH
+// 1. KHO THUẬT TOÁN DỰ ĐOÁN (PHÂN TÍCH CHẴN LẺ)
 // ================================================================
 const Algos = {
-    cycle3: (tx) => (tx.slice(-6, -3).join('') === tx.slice(-3).join('') ? (tx.at(-1) === 'T' ? 'X' : 'T') : null),
-    alternate2: (tx) => (tx[tx.length-4] !== tx[tx.length-3] && tx[tx.length-3] === tx[tx.length-2] && tx[tx.length-2] !== tx[tx.length-1] ? (tx.at(-1) === 'T' ? 'X' : 'T') : null),
-    threeRepeat: (tx) => (tx.slice(-3).every(v => v === tx.at(-1)) ? (tx.at(-1) === 'T' ? 'X' : 'T') : null),
-    markovOrder3: (tx) => {
-        if (tx.length < 15) return null;
-        const last3 = tx.slice(-3).join('');
-        let counts = {T:0, X:0};
-        for(let i=0; i<tx.length-4; i++) {
-            if(tx.slice(i, i+3).join('') === last3) counts[tx[i+3]]++;
+    // Dự đoán dựa trên xu hướng gần nhất
+    trendFollow: (cl) => (cl.slice(-3).every(v => v === cl.at(-1)) ? (cl.at(-1) === 'C' ? 'L' : 'C') : cl.at(-1)),
+    
+    // Thuật toán Markov: tìm xác suất xuất hiện sau một chuỗi
+    markovChain: (cl) => {
+        if (cl.length < 10) return null;
+        const last = cl.at(-1);
+        let count = {C: 0, L: 0};
+        for(let i=0; i < cl.length - 1; i++) {
+            if(cl[i] === last) count[cl[i+1]]++;
         }
-        return counts.T > counts.X ? 'T' : (counts.X > counts.T ? 'X' : null);
+        return count.C > count.L ? 'C' : 'L';
     },
-    entropyCalc: (tx) => {
-        const arr = tx.slice(-12);
-        if (arr.length < 12) return null;
-        const freq = arr.reduce((a, v) => { a[v] = (a[v] || 0) + 1; return a; }, {});
-        const e = Object.values(freq).reduce((s, f) => {
-            const p = f / arr.length;
-            return s - p * Math.log2(p);
-        }, 0);
-        return e > 0.95 ? (tx.at(-1) === 'T' ? 'X' : 'T') : tx.at(-1);
-    },
-    adaptiveNgram: (tx) => {
-        let best = null;
-        for(let k=2; k<=4; k++){
-            const gram = tx.slice(-k).join('');
-            let c = {T:0, X:0};
-            for(let i=0; i<tx.length-k; i++) if(tx.slice(i,i+k).join('')===gram) c[tx[i+k]]++;
-            if(c.T !== c.X) best = c.T > c.X ? 'T' : 'X';
-        }
-        return best;
+
+    // Phân tích đảo cầu (1-1)
+    pingPong: (cl) => {
+        const last2 = cl.slice(-2).join('');
+        if (last2 === 'CL') return 'C';
+        if (last2 === 'LC') return 'L';
+        return null;
     }
 };
 
 // ================================================================
-// 2. ENGINE DỰ ĐOÁN TỔNG HỢP (ENSEMBLE)
+// 2. BỘ ĐIỀU KHIỂN DỮ LIỆU
 // ================================================================
-const seiuManager = {
+const xocDiaManager = {
     getPrediction: (history) => {
-        // Trả về mặc định nếu không có dữ liệu để tránh lỗi Undefined
-        if (!history || history.length < 5) return { prediction: "N/A", confidence: 0, votes: {T:0, X:0} };
+        if (!history || history.length < 5) return { prediction: "N/A", confidence: 0, votes: {C:0, L:0} };
         
-        const tx = history.map(h => (h.totalScore >= 11 || h.result === "Tài") ? 'T' : 'X');
-        let votes = { T: 0, X: 0 };
+        // Chuyển đổi dữ liệu API (chan/le) sang ký hiệu C/L để tính toán
+        const cl = history.map(h => h.resultTruyenThong === "chan" ? 'C' : 'L').reverse();
         
+        let votes = { C: 0, L: 0 };
         Object.values(Algos).forEach(algo => {
-            const res = algo(tx);
-            if (res === 'T') votes.T++; else if (res === 'X') votes.X++;
+            const res = algo(cl);
+            if (res === 'C') votes.C++; else if (res === 'L') votes.L++;
         });
 
-        const total = votes.T + votes.X;
-        const result = votes.T >= votes.X ? 'T' : 'X';
-        const confidence = total > 0 ? (Math.max(votes.T, votes.X) / total) : 0;
+        const total = votes.C + votes.L;
+        const result = votes.C >= votes.L ? 'C' : 'L';
+        const confidence = total > 0 ? (Math.max(votes.C, votes.L) / total) : 0;
 
         return { prediction: result, confidence, votes };
     }
 };
 
 // ================================================================
-// 3. FETCH DATA & RENDER CONSOLE
+// 3. HÀM QUÉT DỮ LIỆU TỪ API
 // ================================================================
-async function updateDataAndRender() {
+async function fetchData() {
     try {
         const response = await fetch(API_URL);
         const data = await response.json();
-        const rawList = data.data || data;
-        if (!Array.isArray(rawList)) return;
-        
-        rikResults = rawList.slice(0, 50);
-        const currentSession = rikResults[0];
-        const historyLabels = rikResults.slice(0, 15).reverse().map(h => (h.totalScore >= 11) ? 'T' : 'X');
-        const pred = seiuManager.getPrediction(rikResults);
-        
-        const dices = currentSession.dices || currentSession.dice || [0,0,3];
-        const d3 = dices[2];
-        
-        renderGigaUI(currentSession.sessionId || currentSession.id, historyLabels, pred, d3);
+        // Tele68 trả dữ liệu trong mảng 'list'
+        xocDiaResults = data.list || [];
     } catch (e) {
-        console.log("🕒 Đang kết nối API Tele68...");
+        console.log("⚠️ Đang chờ kết nối API Tele68...");
     }
 }
 
-function renderGigaUI(session, history, pred, d3) {
-    console.clear();
-    console.log("🚀 Tool Online | Phiên tiếp theo: " + (parseInt(session) + 1));
-    console.log("Dự đoán: " + (pred.prediction === 'T' ? "TÀI" : "XỈU") + " (" + (pred.confidence * 100).toFixed(1) + "%)");
-}
-
 // ================================================================
-// 4. ROUTE CHO RENDER (Giao diện JSON)
+// 4. GIAO DIỆN TRANG CHỦ (HIỂN THỊ KẾT QUẢ)
 // ================================================================
 app.get("/", async (request, reply) => {
-    // PHÒNG THỦ: Nếu chưa lấy được dữ liệu từ API
-    if (rikResults.length === 0) {
-        return { status: "loading", message: "Đang tải dữ liệu phiên, vui lòng đợi 5s rồi tải lại trang..." };
+    // Chống lỗi khi server mới khởi động chưa có dữ liệu
+    if (!xocDiaResults || xocDiaResults.length === 0) {
+        return { 
+            status: "loading", 
+            message: "Đang nạp dữ liệu từ sàn... Vui lòng F5 sau 5 giây!" 
+        };
     }
 
-    const lastSession = rikResults[0];
-    const predictionData = seiuManager.getPrediction(rikResults);
-    
-    // Đảm bảo votes luôn có giá trị
-    const votes = predictionData.votes || { T: 0, X: 0 };
+    const last = xocDiaResults[0];
+    const predData = xocDiaManager.getPrediction(xocDiaResults);
 
-    const THANH_MAP = {1:5, 2:4, 3:6, 4:2, 5:1, 6:3};
-    const dices = lastSession.dices || lastSession.dice || [0, 0, 3];
-    const d3 = dices[2];
-    const lotThanh = THANH_MAP[d3] || 0;
-    const lotCoDinh = (predictionData.prediction === 'T') ? [12, 14, 16] : [5, 7, 10];
-    const lot_tong_hop = [...new Set([...lotCoDinh, lotThanh])].sort((a, b) => a - b);
+    // Phân tích chuỗi cầu hiện tại (Bệt hay Đảo)
+    const last10 = xocDiaResults.slice(0, 10).map(h => h.resultTruyenThong === "chan" ? "C" : "L");
+    let count_bet = 1;
+    for (let i = 0; i < last10.length - 1; i++) {
+        if (last10[i] === last10[i+1]) count_bet++; else break;
+    }
+    const status_cau = count_bet >= 4 ? `BỆT ${count_bet} TAY` : "CẦU ĐẢO 1-1";
+
+    // Gợi ý lót vị thông minh
+    const suggestedLot = (predData.prediction === 'C') ? ["4 Đỏ", "4 Trắng"] : ["3 Đỏ", "3 Trắng"];
 
     return {
-        id: "@KuBinDev .",
+        author: "@KuBinDev .",
         phien_vua_xong: {
-            id: lastSession.sessionId || lastSession.id || "N/A",
-            ket_qua: (lastSession.totalScore >= 11) ? `TÀI (${lastSession.totalScore})` : `XỈU (${lastSession.totalScore})`,
-            dice: dices.join("-")
+            id: last.id,
+            ket_qua: last.resultTruyenThong.toUpperCase(),
+            vi_chi_tiet: last.resultVi,
+            dice_mau: last.dices.join(" - ")
         },
         du_doan_phien_moi: {
-            id_tiep: parseInt(lastSession.sessionId || lastSession.id || 0) + 1,
-            lenh: predictionData.prediction === 'T' ? "TÀI" : "XỈU",
-            confidence: `${(predictionData.confidence * 100).toFixed(1)}%`,
-            lot_vi: lot_tong_hop
+            id_tiep_theo: last.id + 1,
+            lenh_danh: predData.prediction === 'C' ? "CHẴN" : "LẺ",
+            do_tin_cay: `${(predData.confidence * 100).toFixed(1)}%`,
+            goi_y_lot: suggestedLot
         },
-        analysis: {
-            votes: `${votes.T}T - ${votes.X}X`,
-            cau_gan_day: rikResults.slice(0, 10).map(h => h.totalScore >= 11 ? "T" : "X").join("-")
+        phan_tich_ky_thuat: {
+            trang_thai_cau: status_cau,
+            ti_le_dong_thuan: `${predData.votes.C} Chẵn vs ${predData.votes.L} Lẻ`,
+            chuoi_10_phien: last10.join("-")
         },
-        version: VERSION
+        chien_thuat: predData.confidence > 0.7 ? "NÊN VÀO TIỀN" : "NÊN THEO DÕI THÊM"
     };
 });
 
 // ================================================================
-// 5. KHỞI CHẠY
+// 5. KHỞI CHẠY SERVER
 // ================================================================
 const start = async () => {
     try {
         const port = process.env.PORT || 3000;
         await app.listen({ port: port, host: "0.0.0.0" });
-        console.log(`🚀 Server S18 Bá rõ . Online tại cổng: ${port}`);
         
-        // Chạy ngay lần đầu
-        await updateDataAndRender();
-        // Lặp lại sau 15s
-        setInterval(updateDataAndRender, 15000);
+        // Lấy dữ liệu ngay khi bật server
+        await fetchData();
+        
+        // Quét lại mỗi 10 giây (Tốc độ xóc đĩa nhanh nên để 10s là đẹp)
+        setInterval(fetchData, 10000);
+        
+        console.log(`🚀 Tool S18 Xóc Đĩa LIVE tại cổng: ${port}`);
     } catch (err) {
         console.error(err);
         process.exit(1);
