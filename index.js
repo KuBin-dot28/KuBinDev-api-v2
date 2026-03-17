@@ -68,7 +68,7 @@ const engine = new KuBinMathEngine();
    ========================================================== */
 async function fetchGameData() {
     try {
-        const res = await axios.get('http://wtxmd52.tele68.com/v1/txmd5/sessions', { timeout: 6000 });
+        const res = await axios.get('https://wtxmd52.tele68.com/v1/txmd5/sessions', { timeout: 6000 });
         if (!res.data || !Array.isArray(res.data)) return null;
         
         return res.data.map(d => ({
