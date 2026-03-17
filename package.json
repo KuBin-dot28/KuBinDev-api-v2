@@ -1,15 +1,21 @@
 {
-  "name": "kubindev sicbo vip",
-  "version": "1.0.0",
-  "description": "Hệ Thống Soi Cầu Số 1 VietNam",
+  "name": "kubindev chanle s1vn",
+  "version": "13.0.0",
+  "description": "Siêu Thuật Toán Chẵn Lẻ S1vn",
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "dependencies": {
     "fastify": "^4.26.0",
     "@fastify/cors": "^9.0.1",
     "node-fetch": "^3.3.2"
-  }
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "author": "KuBinDev",
+  "license": "ISC"
 }
