@@ -5,7 +5,7 @@ import fetch from "node-fetch";
 const app = fastify();
 await app.register(cors, { origin: "*" });
 
-// --- CONFIG & STATE ---
+// --- CONFIG ---
 const API_URL = "https://wcl.tele68.com/v1/chanlefull/sessions";
 let state = {
     history: [], totals: [], predictions: [],
@@ -14,10 +14,9 @@ let state = {
 };
 
 // ================================================================
-// 🧠 DANH SÁCH THUẬT TOÁN (TÁCH RIÊNG CHI TIẾT)
+// 🧠 CÁC HÀM THUẬT TOÁN (KHÔNG THIẾU CÁI NÀO)
 // ================================================================
 
-// 1. Cầu lặp chu kỳ (N-Gram)
 function algo_NGram(hist) {
     if (hist.length < 10) return null;
     let best = { side: null, weight: 0 };
@@ -36,7 +35,6 @@ function algo_NGram(hist) {
     return best.side ? { side: best.side, weight: best.weight } : null;
 }
 
-// 2. Markov Chain (Xác suất chuyển tiếp)
 function algo_Markov(hist) {
     const order = 3;
     if (hist.length < order + 1) return null;
@@ -49,22 +47,17 @@ function algo_Markov(hist) {
     }
     const lastKey = hist.slice(-order).join('');
     if (!trans[lastKey] || trans[lastKey].C === trans[lastKey].L) return null;
-    return { 
-        side: trans[lastKey].C > trans[lastKey].L ? 'C' : 'L', 
-        weight: 2.5 
-    };
+    return { side: trans[lastKey].C > trans[lastKey].L ? 'C' : 'L', weight: 2.5 };
 }
 
-// 3. Mean Reversion (Hồi quy vị đỏ)
 function algo_MeanRev(totals) {
     if (totals.length < 10) return null;
     const avg = totals.slice(-10).reduce((a, b) => a + b, 0) / 10;
-    if (avg > 2.3) return { side: 'L', weight: 3.0 }; // Quá nhiều đỏ -> Lẻ
-    if (avg < 1.7) return { side: 'C', weight: 3.0 }; // Quá ít đỏ -> Chẵn
+    if (avg > 2.3) return { side: 'L', weight: 3.5 };
+    if (avg < 1.7) return { side: 'C', weight: 3.5 };
     return null;
 }
 
-// 4. Volatility (Biến động mạnh - Bẻ bệt)
 function algo_Volatility(totals) {
     if (totals.length < 10) return null;
     const mean = 2;
@@ -73,7 +66,6 @@ function algo_Volatility(totals) {
     return null;
 }
 
-// 5. Hash MD5 Logic
 function algo_Hash(hash) {
     if (!hash) return { side: 'C', weight: 1.0 };
     const side = parseInt(hash.slice(-1), 16) % 2 === 0 ? 'C' : 'L';
@@ -81,23 +73,35 @@ function algo_Hash(hash) {
 }
 
 // ================================================================
-// 📡 ĐỒNG BỘ DỮ LIỆU (CHỐNG KẸT & FIX SYNC ERROR)
+// 📡 ĐỒNG BỘ DỮ LIỆU (FIX SYNC ERROR & CACHE)
 // ================================================================
 async function sync() {
     try {
         const res = await fetch(`${API_URL}?t=${Date.now()}`, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36' }
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Accept': 'application/json',
+                'Referer': 'https://tele68.com/',
+                'Origin': 'https://tele68.com',
+                'Cache-Control': 'no-cache'
+            },
+            timeout: 10000
         });
         const data = await res.json();
         const list = data.list || [];
         if (list.length === 0) return;
 
-        // Tự động nạp 50 phiên khi khởi động để tránh bieu_quyet (0-0)
+        // Khởi tạo data nếu mảng trống
         if (state.history.length === 0) {
-            [...list].reverse().slice(-50).forEach(item => {
+            console.log("📥 Khởi tạo dữ liệu từ sàn...");
+            [...list].reverse().slice(-60).forEach(item => {
                 state.history.push(item.resultTruyenThong === "chan" ? 'C' : 'L');
                 state.totals.push((item.result.match(/do/g) || []).length);
             });
+            state.lastId = list[0].id;
+            state.lastHash = list[0].hash || list[0].md5;
+            state.lastResultDetail = list[0];
+            return;
         }
 
         const latest = list[0];
@@ -113,22 +117,26 @@ async function sync() {
 
             state.history.push(side);
             state.totals.push(red);
-            if (state.history.length > 50) state.history.shift();
+            if (state.history.length > 100) state.history.shift();
             if (state.predictions.length > 20) state.predictions.shift();
             
             state.lastId = latest.id;
             state.lastHash = latest.hash || latest.md5;
             state.lastResultDetail = latest;
+            console.log(`🚀 Cập nhật phiên mới: ${latest.id}`);
         }
-    } catch (e) { console.log("Sync Error..."); }
+    } catch (e) {
+        console.log("❌ Sync Error... Đang thử kết nối lại");
+    }
 }
 
 // ================================================================
-// 💻 API RENDER JSON
+// 📡 API ENDPOINT (XUẤT JSON ĐÚNG MẪU BỐ THÍCH)
 // ================================================================
 app.get("/", async (req, reply) => {
+    // Chạy sync một lần để đảm bảo data mới nhất khi F5
     await sync();
-    
+
     let vC = 0, vL = 0;
     const algos = [
         algo_NGram(state.history),
@@ -143,24 +151,25 @@ app.get("/", async (req, reply) => {
     });
 
     let finalSide = vC >= vL ? 'C' : 'L';
+    // Chế độ Anti-Fail: Thua 3 cây liên tiếp thì bẻ ngược dự đoán
     if (state.failS >= 3) finalSide = (finalSide === 'C' ? 'L' : 'C');
     state.lastPred = finalSide;
 
     const conf = Math.min(99, Math.round((Math.max(vC, vL) / (vC + vL || 1)) * 100));
-    
+
     const getVi = (dices) => {
         if (!dices) return "unknown";
         const r = (dices.match(/do/g) || []).length;
-        if (r === 2) return "sấp đôi";
-        if (r === 4) return "tứ đỏ";
-        if (r === 0) return "tứ trắng";
-        return r === 3 ? "3 đỏ 1 trắng" : "3 trắng 1 đỏ";
+        if (r === 2) return "two_trang"; // Hoặc "sấp đôi" tùy bố thích
+        if (r === 4) return "tu_do";
+        if (r === 0) return "tu_trang";
+        return r === 3 ? "3_do_1_trang" : "3_trang_1_do";
     };
 
     return {
         "author": "@KuBinDev .",
-        "he_thong": "STABLE - OMEGA VIP Phân Tích S1vn (SUPER UPGRADE)",
-        "phong_do_20_tay": state.predictions.join(" "),
+        "he_thong": "Phân Tích S1vn",
+        "phong_do_20_tay": state.predictions.slice(-20).join(" "),
         "thong_ke_tong_quat": {
             "thang": state.win,
             "thua": state.lose,
@@ -181,15 +190,20 @@ app.get("/", async (req, reply) => {
         "phan_tich_sau": {
             "trang_thai_cau": state.failS >= 2 ? "CẦU ĐẢO BIẾN THIÊN" : "CẦU ĐI ĐỀU",
             "bieu_quyet": `Engine Chẵn (${vC.toFixed(1)}) vs Engine Lẻ (${vL.toFixed(1)})`,
-            "can_bao_rui_ro": conf < 65 ? "⚠️ CẦU YẾU - ĐỢI THÊM" : "✅ NHỊP ĐẸP",
+            "canh_bao_rui_ro": conf < 65 ? "⚠️ CẦU YẾU - ĐỢI THÊM" : "✅ NHỊP ĐẸP",
             "chuoi_lich_su_10": state.history.slice(-10).join("-")
         },
         "loi_khuyen_chien_thuat": conf > 75 ? "VÀO MẠNH TAY" : "CHỜ PHIÊN ĐẸP HƠN"
     };
 });
 
-const port = process.env.PORT || 10000;
-app.listen({ port, host: "0.0.0.0" }, () => {
-    setInterval(sync, 4000);
-    console.log("Omega System Live!");
-});
+// START SERVER
+const start = async () => {
+    try {
+        await app.listen({ port: process.env.PORT || 10000, host: "0.0.0.0" });
+        setInterval(sync, 5000); // Tự động cập nhật mỗi 5 giây
+    } catch (err) {
+        process.exit(1);
+    }
+};
+start();
