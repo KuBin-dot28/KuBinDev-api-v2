@@ -1,20 +1,17 @@
 {
   "name": "kubindev-api-v2",
   "version": "25.0.0",
-  "description": "Siêu Công Cụ Phân Tích v25.0",
-  "main": "index.js",
   "type": "module",
+  "description": "Tool Soi Cầu Đẳng Cấp Dev",
+  "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "author": "KubinDev",
+  "license": "ISC",
   "dependencies": {
     "fastify": "^4.26.0",
     "node-fetch": "^3.3.2"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "author": "KUBIN-DEV",
-  "license": "ISC"
+  }
 }
