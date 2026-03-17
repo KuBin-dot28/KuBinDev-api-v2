@@ -141,21 +141,56 @@ function renderGigaUI(session, history, pred, d3, ent) {
 }
 
 // ================================================================
-// 4. KHỞI CHẠY
+// 4. KHỞI CHẠY (TỐI ƯU CHO RENDER)
 // ================================================================
-app.get("/api/taixiu/sunwin", async () => {
-    return seiuManager.getPrediction(rikResults);
+app.get("/", async (request, reply) => {
+    const lastSession = rikResults[0] || {};
+    const predictionData = seiuManager.getPrediction(rikResults);
+    
+    // Logic lót vị
+    const THANH_MAP = {1:5, 2:4, 3:6, 4:2, 5:1, 6:3};
+    const dices = lastSession.dices || lastSession.dice || [0, 0, 3];
+    const d3 = dices[2];
+    const lotThanh = THANH_MAP[d3] || 0;
+    const lotCoDinh = (predictionData.prediction === 'T') ? [12, 14, 16] : [5, 7, 10];
+    const lot_tong_hop = [...new Set([...lotCoDinh, lotThanh])].sort((a, b) => a - b);
+
+    return {
+        author: "S18 Bá rõ .",
+        phien_vua_xong: {
+            id: lastSession.sessionId || lastSession.id || "N/A",
+            ket_qua: (lastSession.totalScore >= 11) ? `TÀI (${lastSession.totalScore})` : `XỈU (${lastSession.totalScore})`,
+            dice: dices.join("-")
+        },
+        du_doan_phien_moi: {
+            id_tiep: parseInt(lastSession.sessionId || lastSession.id || 0) + 1,
+            lenh: predictionData.prediction === 'T' ? "TÀI" : "XỈU",
+            confidence: `${(predictionData.confidence * 100).toFixed(1)}%`,
+            lot_vi: lot_tong_hop
+        },
+        analysis: {
+            votes: `${predictionData.votes.T}T - ${predictionData.votes.X}X`,
+            cau_gan_day: rikResults.slice(0, 10).map(h => h.totalScore >= 11 ? "T" : "X").join("-")
+        }
+    };
 });
 
 const start = async () => {
     try {
-        await app.listen({ port: PORT, host: "0.0.0.0" });
-        console.log(`🚀 Server S18 Bá rõ . Online tại port ${PORT}`);
+        // QUAN TRỌNG: Render dùng process.env.PORT
+        const port = process.env.PORT || 3000; 
         
-        // Quét API Tele68 mỗi 15 giây
-        setInterval(updateDataAndRender, 15000);
+        // QUAN TRỌNG: host phải là 0.0.0.0
+        await app.listen({ port: port, host: "0.0.0.0" });
+        
+        console.log(`🚀 Server S18 Bá rõ . Online tại cổng: ${port}`);
+        
+        // Khởi động vòng lặp quét dữ liệu
         updateDataAndRender();
+        setInterval(updateDataAndRender, 15000);
+        
     } catch (err) {
+        console.error("Lỗi khởi động:", err);
         process.exit(1);
     }
 };
