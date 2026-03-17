@@ -365,9 +365,34 @@ async function start_giga_process() {
     }
 }
 
-// --- KHỞI CHẠY SERVER ĐỂ RENDER KHÔNG STOP ---
 fastify.get('/', async (request, reply) => {
-  return { status: 'v25.0 running', win: LOG_WIN, loss: LOG_LOSS };
+    try {
+        // Đảm bảo lấy dữ liệu mới nhất từ các biến toàn cục
+        const data = {
+            id: "@KubinDev_VIP",
+            source: "@Khnguyenenn",
+            phien: LAST_SID_CHECKED || "Đang khởi tạo...",
+            tong: (typeof d_sum !== 'undefined') ? d_sum : "---",
+            ket_qua: (typeof LAST_PRED_STORED !== 'undefined') ? LAST_PRED_STORED : "Đang tính",
+            du_doan: LAST_PRED_STORED || "CHỜ GIÂY LÁT",
+            // ĐÂY LÀ PHẦN THÊM VỊ
+            lot_vi: CURRENT_LOT,
+            ti_le_tin_cay: (AF_STREAK_FAIL > 0) ? "95% (Anti-Fail)" : "85%", 
+            ai_stats: {
+                win: LOG_WIN,
+                loss: LOG_LOSS,
+                accuracy: (LOG_WIN + LOG_LOSS > 0) 
+                    ? ((LOG_WIN / (LOG_WIN + LOG_LOSS)) * 100).toFixed(2) + "%" 
+                    : "0%"
+            }
+        };
+
+        // Trả về JSON nếu ông muốn dùng cho App khác, 
+        // hoặc trả về HTML nếu muốn xem trên trình duyệt điện thoại
+        return data; 
+    } catch (e) {
+        return { error: "API Failed", message: e.message };
+    }
 });
 
 const start = async () => {
