@@ -2,161 +2,196 @@ import fastify from "fastify";
 import cors from "@fastify/cors";
 import fetch from "node-fetch";
 
-// --- CẤU HÌNH HỆ THỐNG ---
-const API_URL = "https://wcl.tele68.com/v1/chanlefull/sessions";
-const app = fastify({ logger: false });
+const app = fastify();
 await app.register(cors, { origin: "*" });
 
-// --- CƠ SỞ DỮ LIỆU TẠM THỜI (STATE) ---
-let xocDiaResults = [];
-let lastPrediction = null;
-let historyStatus = [];
-let totalWins = 0;
-let totalLoses = 0;
+// --- CONFIG & STATE ---
+const API_URL = "https://wcl.tele68.com/v1/chanlefull/sessions";
+let state = {
+    history: [], // Mảng các ký tự 'C' hoặc 'L'
+    totals: [],  // Lưu số lượng vị đỏ (0, 1, 2, 3, 4) để tính Mean Reversion
+    predictions: [], 
+    failS: 0, lastId: 0, win: 0, lose: 0, lastHash: ""
+};
 
 // ================================================================
-// 🧠 HỆ THỐNG 5 THUẬT TOÁN PHÂN TÍCH (SUPER STABLE)
+// 🧠 SIÊU THUẬT TOÁN TỔNG HỢP (SUPER ALGORITHMS PACK)
 // ================================================================
-const Engine = {
-    // 1. Phân tích Xu hướng (Trend)
-    checkTrend: (cl) => {
-        const last = cl.at(-1);
-        const count = cl.slice(-4).filter(v => v === last).length;
-        if (count >= 3) return last; // Đang theo dây
-        return null;
-    },
-    // 2. Phân tích Xác suất Markov (History Probability)
-    checkMarkov: (cl) => {
-        if (cl.length < 20) return null;
-        const pattern = cl.slice(-2).join('');
-        let c = 0, l = 0;
-        for (let i = 0; i < cl.length - 2; i++) {
-            if (cl.slice(i, i + 2).join('') === pattern) {
-                cl[i + 2] === 'C' ? c++ : l++;
+const SuperEngine = {
+    // 1. N-Gram Adaptive: Tìm mẫu lặp 3-5 phiên trong quá khứ
+    algo_NGram: (hist) => {
+        if (hist.length < 10) return null;
+        let bestPred = null; let maxCount = -1;
+        for (let k = 3; k <= 5; k++) {
+            const lastGram = hist.slice(-k).join('');
+            let counts = { C: 0, L: 0 };
+            for (let i = 0; i < hist.length - k; i++) {
+                if (hist.slice(i, i + k).join('') === lastGram) {
+                    const next = hist[i + k];
+                    if (counts[next] !== undefined) counts[next]++;
+                }
+            }
+            if (counts.C !== counts.L) {
+                const currentMax = Math.max(counts.C, counts.L);
+                if (currentMax > maxCount) {
+                    maxCount = currentMax;
+                    bestPred = counts.C > counts.L ? 'C' : 'L';
+                }
             }
         }
-        return c > l ? 'C' : (l > c ? 'L' : null);
+        return bestPred;
     },
-    // 3. Phân tích Cầu Nhảy (Ping-Pong)
-    checkPingPong: (cl) => {
-        const last3 = cl.slice(-3).join('-');
-        if (last3 === 'C-L-C') return 'L';
-        if (last3 === 'L-C-L') return 'C';
+
+    // 2. Mean Reversion (Dựa trên số vị đỏ - Trung bình là 2)
+    algo_MeanRev: (totals) => {
+        if (totals.length < 7) return null;
+        const avg = totals.slice(-7).reduce((a, b) => a + b, 0) / 7;
+        if (avg > 2.5) return 'L'; // Quá nhiều đỏ (Chẵn) -> Đánh Lẻ
+        if (avg < 1.5) return 'C'; // Quá ít đỏ (Lẻ) -> Đánh Chẵn
         return null;
     },
-    // 4. Phân tích Đối xứng (Symmetry)
-    checkSymmetry: (cl) => {
-        const part1 = cl.slice(-4, -2).join('');
-        const part2 = cl.slice(-2).reverse().join('');
-        if (part1 === part2) return cl.at(-1) === 'C' ? 'L' : 'C';
+
+    // 3. Volatility Breakout (Biến động mạnh thì đảo chiều)
+    algo_Volatility: (totals) => {
+        if (totals.length < 10) return null;
+        const mean = 2;
+        const variance = totals.slice(-10).reduce((a, v) => a + Math.pow(v - mean, 2), 0) / 10;
+        const std = Math.sqrt(variance);
+        if (std > 1.2) return totals.at(-1) % 2 === 0 ? 'L' : 'C'; 
         return null;
     },
-    // 5. Logic Hồi mã thương (Vả ngược bệt dài)
-    checkBreak: (cl) => {
-        let last = cl.at(-1);
-        let count = 0;
-        for (let i = cl.length - 1; i >= 0; i--) {
-            if (cl[i] === last) count++; else break;
+
+    // 4. Markov Chain (Xác suất chuyển tiếp)
+    algo_Markov: (hist) => {
+        const order = 3;
+        if (hist.length < order + 1) return null;
+        const trans = {};
+        for (let i = 0; i <= hist.length - order - 1; i++) {
+            const key = hist.slice(i, i + order).join('');
+            const next = hist[i + order];
+            trans[key] = trans[key] || { C: 0, L: 0 };
+            trans[key][next]++;
         }
-        if (count >= 5) return last === 'C' ? 'L' : 'C'; // Bệt 5 tay mới báo bẻ
-        return null;
+        const lastKey = hist.slice(-order).join('');
+        if (!trans[lastKey]) return null;
+        const { C, L } = trans[lastKey];
+        return C === L ? null : (C > L ? 'C' : 'L');
     }
 };
 
 // ================================================================
-// 📡 TRÌNH QUẢN LÝ DỮ LIỆU & ĐỐI CHIẾU ĐÚNG SAI
+// 🛠 HÀM PHÂN TÍCH TỔNG HỢP (VOTING SYSTEM)
 // ================================================================
-async function syncData() {
-    try {
-        const response = await fetch(API_URL);
-        const data = await response.json();
-        const newList = data.list || [];
+function analyzeOmega() {
+    const hist = state.history;
+    const totals = state.totals;
+    
+    let votes = { C: 0, L: 0 };
 
-        if (xocDiaResults.length > 0 && newList[0].id !== xocDiaResults[0].id) {
-            const realResult = newList[0].resultTruyenThong === "chan" ? 'CHẴN' : 'LẺ';
-            
-            if (lastPrediction && lastPrediction.id === newList[0].id) {
-                const isWin = lastPrediction.pick === realResult;
-                if (isWin) { totalWins++; historyStatus.unshift("✅"); }
-                else { totalLoses++; historyStatus.unshift("❌"); }
-                if (historyStatus.length > 20) historyStatus.pop();
-            }
-        }
-        xocDiaResults = newList;
-    } catch (e) {
-        console.log("⚠️ Đang đợi sàn nhả dữ liệu...");
-    }
+    // --- LỚP 1: THUẬT TOÁN HÌNH MẪU (Dựa trên hist) ---
+    const nGram = SuperEngine.algo_NGram(hist);
+    if (nGram) votes[nGram] += 3.5;
+
+    const markov = SuperEngine.algo_Markov(hist);
+    if (markov) votes[markov] += 2.5;
+
+    // --- LỚP 2: THUẬT TOÁN THỐNG KÊ (Dựa trên totals) ---
+    const meanRev = SuperEngine.algo_MeanRev(totals);
+    if (meanRev) votes[meanRev] += 2.0;
+
+    const vol = SuperEngine.algo_Volatility(totals);
+    if (vol) votes[vol] += 2.0;
+
+    // --- LỚP 3: HASH LOGIC (P1-P8 từ v13) ---
+    // (Giả lập logic P1 đơn giản để demo, bạn có thể copy nguyên cục P1-P8 cũ vào đây)
+    const hashBit = parseInt(state.lastHash.slice(-1), 16) % 2 === 0 ? 'C' : 'L';
+    votes[hashBit] += 3.0;
+
+    // KẾT LUẬN
+    let finalSide = votes.C >= votes.L ? 'C' : 'L';
+    
+    // Anti-Fail
+    if (state.failS >= 3) finalSide = finalSide === 'C' ? 'L' : 'C';
+
+    const totalWeight = votes.C + votes.L;
+    const conf = Math.min(99, Math.round((Math.max(votes.C, votes.L) / (totalWeight || 1)) * 100));
+
+    return { finalSide, conf, votes };
 }
 
 // ================================================================
-// 💻 GIAO DIỆN TRANG CHỦ (PHÂN TÍCH CHI TIẾT)
+// 📡 ĐỒNG BỘ DỮ LIỆU
 // ================================================================
-app.get("/", async (request, reply) => {
-    if (xocDiaResults.length < 20) return { status: "DỮ LIỆU YẾU", msg: "Cần tối thiểu 20 phiên để phân tích nết..." };
+async function sync() {
+    try {
+        const res = await fetch(API_URL);
+        const data = await res.json();
+        const latest = data.list[0];
 
-    const last = xocDiaResults[0];
-    const cl = xocDiaResults.map(h => h.resultTruyenThong === "chan" ? 'C' : 'L').reverse();
-    
-    // Thu thập biểu quyết từ 5 Engine
-    let voteC = 0, voteL = 0;
-    Object.values(Engine).forEach(fn => {
-        const res = fn(cl);
-        if (res === 'C') voteC++; else if (res === 'L') voteL++;
-    });
+        if (latest && latest.id !== state.lastId) {
+            const side = latest.resultTruyenThong === "chan" ? 'C' : 'L';
+            // Tính số vị đỏ từ field "result" (VD: "do-trang-do-do" -> 3)
+            const redCount = (latest.result.match(/do/g) || []).length;
 
-    // Tính độ tin cậy dựa trên sự đồng thuận (Không random)
-    const totalVotes = voteC + voteL;
-    const predict = voteC >= voteL ? "CHẴN" : "LẺ";
-    let confidence = totalVotes > 0 ? (Math.max(voteC, voteL) / 5) * 100 : 50;
+            if (state.lastPred) {
+                const isWin = state.lastPred === side;
+                state.predictions.push(isWin ? "✅" : "❌");
+                if (isWin) { state.failS = 0; state.win++; } else { state.failS++; state.lose++; }
+            }
 
-    // Lưu phiên dự đoán tiếp theo
-    lastPrediction = { id: last.id + 1, pick: predict };
+            state.history.push(side);
+            state.totals.push(redCount);
+            if (state.history.length > 30) { state.history.shift(); state.totals.shift(); }
+            if (state.predictions.length > 20) state.predictions.shift();
+            
+            state.lastId = latest.id;
+            state.lastHash = latest.hash || latest.md5;
+            state.lastResultDetail = latest;
+        }
+    } catch (e) { console.error("Sync Error"); }
+}
 
-    // Phân tích dây bệt hiện tại
-    let streak = 1;
-    for (let i = 0; i < cl.length - 1; i++) {
-        if (cl.at(-(i+1)) === cl.at(-(i+2))) streak++; else break;
-    }
+// ================================================================
+// 📡 API ENDPOINT
+// ================================================================
+app.get("/", async (req, reply) => {
+    await sync();
+    const result = analyzeOmega();
+    state.lastPred = result.finalSide;
 
     return {
-        author: "@KuBinDev .",
-        he_thong: "STABLE - OMEGA VIP",
-        phong_do_20_tay: historyStatus.join(" "),
-        thong_ke_tong_quat: {
-            thang: totalWins,
-            thua: totalLoses,
-            ti_le_thang_tb: `${((totalWins / (totalWins + totalLoses || 1)) * 100).toFixed(1)}%`
+        "author": "@KuBinDev .",
+        "he_thong": "STABLE - OMEGA VIP v13.0 (SUPER UPGRADE)",
+        "phong_do_20_tay": state.predictions.join(" "),
+        "thong_ke_tong_quat": {
+            "thang": state.win,
+            "thua": state.lose,
+            "ti_le_thang_tb": `${((state.win/(state.win+state.lose||1))*100).toFixed(1)}%`
         },
-        phien_vua_xong: {
-            id: last.id,
-            ket_qua: last.resultTruyenThong.toUpperCase(),
-            vi: last.resultVi,
-            dices: last.dices ? last.dices.join(" - ") : "N/A"
+        "phien_vua_xong": {
+            "id": state.lastId,
+            "ket_qua": state.lastResultDetail?.resultTruyenThong.toUpperCase(),
+            "dices": state.lastResultDetail?.result
         },
-        du_doan_phien_moi: {
-            id_tiep: last.id + 1,
-            lenh: predict,
-            tin_cay_thuc_te: `${confidence.toFixed(1)}%`,
-            goi_y_lot: predict === "CHẴN" ? ["Tứ Đỏ", "Tứ Trắng"] : ["3 Đỏ", "3 Trắng"]
+        "du_doan_phien_moi": {
+            "id_tiep": state.lastId + 1,
+            "lenh": result.finalSide === 'C' ? "CHẴN" : "LẺ",
+            "tin_cay_thuc_te": `${result.conf}.0%`,
+            "goi_y_lot": result.finalSide === 'C' ? ["Tứ Đỏ", "Tứ Trắng"] : ["3 Đỏ", "3 Trắng"]
         },
-        phan_tich_sau: {
-            trang_thai_cau: streak >= 4 ? `BỆT ${streak} TAY` : "CẦU ĐẢO BIẾN THIÊN",
-            bieu_quyet: `Engine Chẵn (${voteC}) vs Engine Lẻ (${voteL})`,
-            canh_bao_rui_ro: (historyStatus[0] === "❌" && historyStatus[1] === "❌") ? "⛔ CẦU ĐANG GÃY - DỪNG NGAY" : (confidence >= 80 ? "🔥 CẦU NÉT - VÀO TIỀN" : "⚠️ CẦU YẾU - ĐỢI THÊM"),
-            chuoi_lich_su_10: cl.slice(-10).join("-")
+        "phan_tich_sau": {
+            "trang_thai_cau": state.failS >= 2 ? "BIẾN ĐỘNG MẠNH" : "CẦU ĐI ĐỀU",
+            "bieu_quyet": `Engine Chẵn (${result.votes.C.toFixed(1)}) vs Engine Lẻ (${result.votes.L.toFixed(1)})`,
+            "canh_bao_rui_ro": result.conf < 60 ? "⚠️ CẦU YẾU" : "✅ NHỊP ĐẸP",
+            "chuoi_lich_su_10": state.history.slice(-10).join("-")
         },
-        loi_khuyen_chien_thuat: confidence >= 80 ? "ĐI ĐỀU TAY + LÓT VỊ" : "CHỜ PHIÊN ĐẸP HƠN"
+        "loi_khuyen_chien_thuat": result.conf > 75 ? "VÀO MẠNH TAY" : "CHỜ PHIÊN ĐẸP"
     };
 });
 
-// KHỞI CHẠY HỆ THỐNG
-const start = async () => {
-    try {
-        const port = process.env.PORT || 3000;
-        await app.listen({ port: port, host: "0.0.0.0" });
-        await syncData();
-        setInterval(syncData, 8000); 
-        console.log(`🚀 HỆ THỐNG SUPER VIP ĐANG CHẠY TẠI CỔNG: ${port}`);
-    } catch (err) { process.exit(1); }
-};
-start();
+// START
+const port = process.env.PORT || 3000;
+app.listen({ port, host: "0.0.0.0" }, () => {
+    setInterval(sync, 4000);
+    console.log("Omega Super Engine is Live!");
+});
