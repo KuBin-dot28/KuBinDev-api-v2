@@ -1,13 +1,13 @@
 {
-  "name": "kubindev phantichs1vn",           // Tên của dự án
-  "version": "1.0.0",           // Phiên bản
-  "type": "module",              // BẮT BUỘC: Để dùng lệnh "import" trong code của bạn
+  "name": "kubindev-phantichs1vn",
+  "version": "1.0.0",
+  "type": "module",
   "scripts": {
-    "start": "node index.js"    // Lệnh để Render kích hoạt tool
+    "start": "node index.js"
   },
-  "dependencies": {              // Danh sách "đồ nghề" cần tải về
-    "fastify": "^4.26.0",        // Thư viện tạo máy chủ Web
-    "@fastify/cors": "^9.0.1",   // Thư viện cho phép truy cập từ xa
-    "node-fetch": "^2.7.0"       // Thư viện để lấy dữ liệu từ Tele68
+  "dependencies": {
+    "fastify": "^4.26.0",
+    "@fastify/cors": "^9.0.1",
+    "node-fetch": "^2.7.0"
   }
 }
