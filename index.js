@@ -374,9 +374,7 @@ fastify.get('/', async (request, reply) => {
             phien: LAST_SID_CHECKED || "Đang khởi tạo...",
             tong: (typeof d_sum !== 'undefined') ? d_sum : "---",
             ket_qua: (typeof LAST_PRED_STORED !== 'undefined') ? LAST_PRED_STORED : "Đang tính",
-            du_doan: LAST_PRED_STORED || "CHỜ GIÂY LÁT",
-            // ĐÂY LÀ PHẦN THÊM VỊ
-            lot_vi: CURRENT_LOT,
+            du_doan: LAST_PRED_STORED || "CHỜ GIÂY LÁT"
             ti_le_tin_cay: (AF_STREAK_FAIL > 0) ? "95% (Anti-Fail)" : "85%", 
             ai_stats: {
                 win: LOG_WIN,
