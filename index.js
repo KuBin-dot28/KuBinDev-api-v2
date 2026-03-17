@@ -367,14 +367,12 @@ async function start_giga_process() {
 
 fastify.get('/', async (request, reply) => {
     try {
-        // Đảm bảo lấy dữ liệu mới nhất từ các biến toàn cục
-        const data = {
+        return {
             id: "@KubinDev_VIP",
             source: "@Khnguyenenn",
             phien: LAST_SID_CHECKED || "Đang khởi tạo...",
-            tong: (typeof d_sum !== 'undefined') ? d_sum : "---",
-            ket_qua: (typeof LAST_PRED_STORED !== 'undefined') ? LAST_PRED_STORED : "Đang tính",
-            du_doan: LAST_PRED_STORED || "CHỜ GIÂY LÁT"
+            tong: D_SUM_GLOBAL,
+            du_doan: LAST_PRED_STORED || "CHỜ GIÂY LÁT",
             ti_le_tin_cay: (AF_STREAK_FAIL > 0) ? "95% (Anti-Fail)" : "85%", 
             ai_stats: {
                 win: LOG_WIN,
@@ -384,15 +382,10 @@ fastify.get('/', async (request, reply) => {
                     : "0%"
             }
         };
-
-        // Trả về JSON nếu ông muốn dùng cho App khác, 
-        // hoặc trả về HTML nếu muốn xem trên trình duyệt điện thoại
-        return data; 
     } catch (e) {
         return { error: "API Failed", message: e.message };
     }
 });
-
 const start = async () => {
   try {
     await fastify.listen({ port: port, host: '0.0.0.0' });
