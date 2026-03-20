@@ -2,9 +2,9 @@
   "name": "kubindev-api",
   "version": "1.0.0",
   "description": "API Phân tích dữ liệu",
-  "main": "1.js",
+  "main": "Sunwin.js",
   "scripts": {
-    "start": "node 1.js"
+    "start": "node Sunwin.js"
   },
   "dependencies": {
     "ws": "^8.13.0",
