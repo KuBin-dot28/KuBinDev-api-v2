@@ -1,14 +1,14 @@
 {
-  "name": "kubindev-api",
+  "name": "kubindev-prediction-system",
   "version": "1.0.0",
-  "description": "API Phân tích dữ liệu",
-  "main": "Sunwin.js",
+  "description": "Hệ thống phân tích và dự đoán kết quả",
+  "main": "Sunwinv2.js",
   "scripts": {
-    "start": "node Sunwin.js"
+    "start": "node Sunwinv2.js"
   },
   "dependencies": {
-    "ws": "^8.13.0",
     "express": "^4.18.2",
+    "axios": "^1.6.2",
     "cors": "^2.8.5"
   }
 }
