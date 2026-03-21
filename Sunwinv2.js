@@ -3,7 +3,7 @@ const axios = require('axios');
 const cors = require('cors');
 
 const app = express();
-const PORT = 12345;
+const PORT = process.env.PORT || 8000;
 
 // Middleware
 app.use(cors());
@@ -440,7 +440,24 @@ class UltraDicePredictionSystem {
             balanceHistory: this.trackBalanceHistory(),
             optimizationSuggestions: this.suggestWeightOptimization()
         };
-    }
+    }// <--- Tìm dấu này ở khoảng dòng 460
+
+    // ==================== HÀM TỰ ĐỘNG LẤY DỮ LIỆU GAME ====================
+    async autoFetchGame() {
+        try {
+            // THAY LINK API THẬT CỦA GAME VÀO ĐÂY
+            const response = await axios.get('https://wtxmd52.tele68.com/v1/txmd5/sessions'); 
+            
+            if (response.data && Array.isArray(response.data)) {
+                // Lấy 100 phiên mới nhất từ API game
+                this.history = response.data.slice(0, 100); 
+                this.updateSessionStats(); 
+                console.log("Dữ liệu KuBinDev đã tự động cập nhật từ Game!");
+            }
+        } catch (error) {
+            console.error("Lỗi lấy dữ liệu game:", error.message);
+        }
+    }// <--- Tìm dấu này ở khoảng dòng 460
 
     model5Support2() {
         return {
@@ -2544,9 +2561,30 @@ app.post('/api/reset', (req, res) => {
     res.json({ message: 'Hệ thống đã được reset' });
 });
 
-// Khởi động server
-app.listen(PORT, () => {
-    console.log(`Server chạy trên cổng ${PORT}`);
-    console.log(`API: http://localhost:${PORT}/api/dudoan/sunvip`);
-    console.log(`Stats: http://localhost:${PORT}/api/stats`);
+// =========================================================
+// PHẦN KHỞI ĐỘNG SERVER (THAY THẾ ĐOẠN APP.LISTEN CŨ)
+// =========================================================
+
+// 1. Cấu hình để Render và điện thoại truy cập được
+const HOST_NAME = '0.0.0.0'; 
+const PORT_FINAL = process.env.PORT || 8000;
+
+// 2. Kích hoạt tự động quét dữ liệu game mỗi 20 giây
+// Dòng này sẽ gọi hàm autoFetchGame() bạn đã dán ở trên
+if (typeof predictionSystem !== 'undefined') {
+    setInterval(() => {
+        if (typeof predictionSystem.autoFetchGame === 'function') {
+            predictionSystem.autoFetchGame();
+        }
+    }, 20000); // 20 giây quét 1 lần
+}
+
+// 3. Chạy Server
+app.listen(PORT_FINAL, HOST_NAME, () => {
+    console.log(`=========================================`);
+    console.log(`🚀 HỆ THỐNG KUBINDEV ĐÃ ONLINE!`);
+    console.log(`📡 Port: ${PORT_FINAL}`);
+    console.log(`🔗 API chính: https://kubindev-api-vip100-5.onrender.com/api/predict`);
+    console.log(`📊 Xem stats: https://kubindev-api-vip100-5.onrender.com/api/stats`);
+    console.log(`=========================================`);
 });
