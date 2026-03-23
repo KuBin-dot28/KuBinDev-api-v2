@@ -5467,7 +5467,7 @@ async def get_prediction():
             reasons = [meta_reason]
 
         return {
-            "id":"KuBinDev"
+            "id":"KuBinDev",
             "phien_vua_ra": latest.get('id'),
             "xuc_xac": current_dices,
             "du_doan_tiep": int(latest.get('id')) + 1,
