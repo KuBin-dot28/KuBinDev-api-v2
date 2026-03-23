@@ -5474,7 +5474,7 @@ async def get_prediction():
             "ai_chot": "Tài" if final_side == "T" else "Xỉu",
             "do_tin_cay": f"{final_conf:.1f}%",
             "tu_dien": dict_res,
-            "ly_do": " | ".join(reasons[:4])
+            "ly_do": " | ".join(reasons[:4]),
             "admin":"KuBinDev"
         }
 
