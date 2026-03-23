@@ -5467,6 +5467,7 @@ async def get_prediction():
             reasons = [meta_reason]
 
         return {
+            "id":"KuBinDev"
             "phien_vua_ra": latest.get('id'),
             "xuc_xac": current_dices,
             "du_doan_tiep": int(latest.get('id')) + 1,
@@ -5474,6 +5475,7 @@ async def get_prediction():
             "do_tin_cay": f"{final_conf:.1f}%",
             "tu_dien": dict_res,
             "ly_do": " | ".join(reasons[:4])
+            "admin":"KuBinDev"
         }
 
     except Exception as e:
