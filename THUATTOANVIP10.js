@@ -1271,7 +1271,7 @@ app.get("/api/taixiumd5/lc79", async () => {
     }
 
     return {
-        id: "GiaThinhzZz Lc79",
+        id: "KuBinDev",
         phien_truoc: lastResult.session,
         xuc_xac1: lastResult.dice[0],
         xuc_xac2: lastResult.dice[1],
